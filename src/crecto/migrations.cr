@@ -1,36 +1,41 @@
 module Crecto
   module Migrations
     macro extended
-      @@query : String = ""
+      @@migration : String = ""
       @@adds = Array(String).new
+      @@change : String = ""
     end
 
     def change(&block)
-      puts yield
+      @@change = yield
+    end
+
+    def get_change
+      @@change  
     end
 
     def create_table(table_name, &block)
-      @@query += "CREATE TABLE #{table_name}(\n"
+      @@migration += "CREATE TABLE #{table_name}(\n"
       yield
-      @@query += @@adds.join(",\n")
-      @@query += "\n);"
+      @@migration += @@adds.join(",\n")
+      @@migration += "\n);"
     end
 
     def create_if_not_exists(table_name, &block)
-      @@query += "CREATE TABLE #{table_name} IF NOT EXISTS(\n"
+      @@migration += "CREATE TABLE #{table_name} IF NOT EXISTS(\n"
       yield
-      @@query += "\n);"
+      @@migration += "\n);"
     end
 
     def add(field_name, field_type, **opts)
       add = "#{field_name} #{field_type_from_sym(field_type)}"
 
-      add += add_opts(opts)
+      add += add_field_opts(opts)
 
       @@adds.push add
     end
 
-    def add_opts(opts)
+    def add_field_opts(opts)
       x = ""
       unique = opts[:unique]?
       x += " UNIQUE" if unique == true
