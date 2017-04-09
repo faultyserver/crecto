@@ -120,10 +120,11 @@ module Crecto
 
       {% mapping = FIELDS.map do |field|
            json_fields.push(field[:name]) if field[:type].id.stringify == "Json"
-           field[:name].id.stringify + ": {type: " + (field[:type].id == "Int64" ? "DbBigInt" : field[:type].id.stringify) + ", nilable: true}"
+           field_type = field[:type].id == "Int64" || field[:type].id == "Int32" ? "PkeyValue" : field[:type].id.stringify
+           "#{field[:name].id.stringify}: {type: #{field_type.id}, nilable: true}"
          end %}
 
-      {% mapping.push(PRIMARY_KEY_FIELD.id.stringify + ": {type: DbBigInt, nilable: true}") %}
+      {% mapping.push(PRIMARY_KEY_FIELD.id.stringify + ": {type: PkeyValue, nilable: true}") %}
 
       {% unless CREATED_AT_FIELD == nil %}
         {% mapping.push(CREATED_AT_FIELD.id.stringify + ": {type: Time, nilable: true}") %}
@@ -148,18 +149,18 @@ module Crecto
         query_hash = {} of Symbol => DbValue
 
         {% for field in FIELDS %}
-          if self.{{field[:name].id}} && @@changeset_fields.includes?({{field[:name]}})
+          if @@changeset_fields.includes?({{field[:name]}})
             query_hash[{{field[:name]}}] = self.{{field[:name].id}}
-            query_hash[{{field[:name]}}] = query_hash[{{field[:name]}}].as(Time).to_utc if query_hash[{{field[:name]}}].is_a?(Time)
+            query_hash[{{field[:name]}}] = query_hash[{{field[:name]}}].as(Time).to_utc if query_hash[{{field[:name]}}].is_a?(Time) && query_hash[{{field[:name]}}].as(Time).local?
           end
         {% end %}
 
         {% unless CREATED_AT_FIELD == nil %}
-          query_hash[{{CREATED_AT_FIELD.id.symbolize}}] = self.{{CREATED_AT_FIELD.id}}.nil? ? nil : self.{{CREATED_AT_FIELD.id}}.as(Time).to_utc
+          query_hash[{{CREATED_AT_FIELD.id.symbolize}}] = self.{{CREATED_AT_FIELD.id}}.nil? ? nil : (self.{{CREATED_AT_FIELD.id}}.as(Time).local? ? self.{{CREATED_AT_FIELD.id}}.as(Time).to_utc : self.{{CREATED_AT_FIELD.id}})
         {% end %}
 
         {% unless UPDATED_AT_FIELD == nil %}
-          query_hash[{{UPDATED_AT_FIELD.id.symbolize}}] = self.{{UPDATED_AT_FIELD.id}}.nil? ? nil : self.{{UPDATED_AT_FIELD.id}}.as(Time).to_utc
+          query_hash[{{UPDATED_AT_FIELD.id.symbolize}}] = self.{{UPDATED_AT_FIELD.id}}.nil? ? nil : (self.{{UPDATED_AT_FIELD.id}}.as(Time).local? ? self.{{UPDATED_AT_FIELD.id}}.as(Time).to_utc : self.{{UPDATED_AT_FIELD.id}})
         {% end %}
 
         query_hash

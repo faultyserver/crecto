@@ -1,9 +1,9 @@
 module Crecto
   module Adapters
     #
-    # Adapter module for MySQL
+    # Adapter module for SQLite3
     #
-    module Mysql
+    module SQLite3
       extend BaseAdapter
 
       def self.exec_execute(conn, query_string, params : Array)
@@ -46,9 +46,8 @@ module Crecto
         q.push "VALUES"
         q.push "(#{(1..fields_values[:values].size).map { "?" }.join(", ")})"
 
-        query = exec_execute(conn, q.join(" "), fields_values[:values])
-        return query if conn.is_a?(DB::TopLevelTransaction)
-        execute(conn, "SELECT * FROM #{changeset.instance.class.table_name} WHERE #{changeset.instance.class.primary_key_field} = LAST_INSERT_ID()")
+        res = exec_execute(conn, q.join(" "), fields_values[:values])
+        execute(conn, "SELECT * FROM #{changeset.instance.class.table_name} WHERE #{changeset.instance.class.primary_key_field} = #{res.last_insert_id}")
       end
 
       private def self.update_begin(table_name, fields_values)
@@ -95,7 +94,8 @@ module Crecto
       end
 
       private def self.instance_fields_and_values(query_hash : Hash)
-        {fields: query_hash.keys, values: query_hash.values.map { |v| v.is_a?(Time) ? v.to_s.split(" ")[0..1].join(" ") : v.as(DbValue) }}
+        values = query_hash.values.map { |x| x.is_a?(JSON::Any) ? x.to_json : x.as(DbValue) }
+        {fields: query_hash.keys, values: values}
       end
 
       private def self.position_args(query_string : String)

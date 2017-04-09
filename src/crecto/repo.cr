@@ -1,25 +1,26 @@
 module Crecto
   # A repository maps to an underlying data store, controlled by the adapter.
   module Repo
-    # Set Adapter
+    macro extended
+      @@config = Crecto::Repo::Config.new
+    end
 
-    # :nodoc:
-    ADAPTER = if DB.drivers.keys.includes?("mysql")
-                Crecto::Adapters::Mysql
-              elsif DB.drivers.keys.includes?("postgres") || DB.drivers.keys.includes?("postgresql")
-                Crecto::Adapters::Postgres
-              else
-                raise Crecto::InvalidAdapter.new("Invalid or no adapter specified")
-              end
+    def config
+      yield @@config
+    end
 
+    def config
+      @@config
+    end
+    
     # Return a list of *queryable* instances using *query*
     #
     # ```
     # query = Query.where(name: "fred")
     # users = Repo.all(User, query)
     # ```
-    def self.all(queryable, query : Query? = Query.new, **opts) : Array
-      q = ADAPTER.run(:all, queryable, query).as(DB::ResultSet)
+    def all(queryable, query : Query? = Query.new, **opts) : Array
+      q = config.adapter.run(config.get_connection, :all, queryable, query).as(DB::ResultSet)
 
       results = queryable.from_rs(q.as(DB::ResultSet))
 
@@ -36,7 +37,7 @@ module Crecto
     # user = Crecto::Repo.get(User, 1)
     # posts = Repo.all(user, :posts)
     # ```
-    def self.all(queryable_instance, association_name : Symbol) : Array
+    def all(queryable_instance, association_name : Symbol) : Array
       query = Crecto::Repo::Query.where(queryable_instance.class.foreign_key_for_association(association_name), queryable_instance.pkey_value)
       all(queryable_instance.class.klass_for_association(association_name), query)
     end
@@ -46,8 +47,8 @@ module Crecto
     # ```
     # users = Crecto::Repo.all(User)
     # ```
-    def self.all(queryable, query = Query.new) : Array
-      q = ADAPTER.run(:all, queryable, query).as(DB::ResultSet)
+    def all(queryable, query = Query.new) : Array
+      q = config.adapter.run(config.get_connection, :all, queryable, query).as(DB::ResultSet)
       results = queryable.from_rs(q)
       results
     end
@@ -57,8 +58,8 @@ module Crecto
     # ```
     # user = Repo.get(User, 1)
     # ```
-    def self.get(queryable, id)
-      q = ADAPTER.run(:get, queryable, id).as(DB::ResultSet)
+    def get(queryable, id)
+      q = config.adapter.run(config.get_connection, :get, queryable, id).as(DB::ResultSet)
       results = queryable.from_rs(q)
       results.first if results.any?
     end
@@ -69,7 +70,7 @@ module Crecto
     # ```
     # user = Repo.get(User, 1)
     # ```
-    def self.get!(queryable, id)
+    def get!(queryable, id)
       if result = get(queryable, id)
         result
       else
@@ -84,8 +85,8 @@ module Crecto
     # query = Query.preload(:posts)
     # user = Repo.get(User, 1, query)
     # ```
-    def self.get(queryable, id, query : Query)
-      q = ADAPTER.run(:get, queryable, id).as(DB::ResultSet)
+    def get(queryable, id, query : Query)
+      q = config.adapter.run(config.get_connection, :get, queryable, id).as(DB::ResultSet)
       results = queryable.from_rs(q)
 
       if results.any?
@@ -105,7 +106,7 @@ module Crecto
     # query = Query.preload(:posts)
     # user = Repo.get(User, 1, query)
     # ```
-    def self.get!(queryable, id, query : Query)
+    def get!(queryable, id, query : Query)
       if result = get(queryable, id, query : Query)
         result
       else
@@ -119,7 +120,7 @@ module Crecto
     # user = Crecto::Repo.get(User, 1)
     # post = Repo.get(user, :post)
     # ```
-    def self.get(queryable_instance, association_name : Symbol)
+    def get(queryable_instance, association_name : Symbol)
       results = all(queryable_instance, association_name)
       results.first if results.any?
     end
@@ -131,7 +132,7 @@ module Crecto
     # user = Crecto::Repo.get(User, 1)
     # post = Repo.get(user, :post)
     # ```
-    def self.get!(queryable_instance, association_name : Symbol)
+    def get!(queryable_instance, association_name : Symbol)
       if result = get(queryable_instance, association_name : Symbol)
         result
       else
@@ -144,8 +145,8 @@ module Crecto
     # ```
     # user = Repo.get_by(User, name: "fred", age: 21)
     # ```
-    def self.get_by(queryable, **opts)
-      q = ADAPTER.run(:all, queryable, Query.where(**opts).limit(1)).as(DB::ResultSet)
+    def get_by(queryable, **opts)
+      q = config.adapter.run(config.get_connection, :all, queryable, Query.where(**opts).limit(1)).as(DB::ResultSet)
       results = queryable.from_rs(q)
       results.first if results.any?
     end
@@ -156,7 +157,7 @@ module Crecto
     # ```
     # user = Repo.get_by(User, name: "fred", age: 21)
     # ```
-    def self.get_by!(queryable, **opts)
+    def get_by!(queryable, **opts)
       if result = get_by(queryable, **opts)
         result
       else
@@ -170,18 +171,19 @@ module Crecto
     # user = User.new
     # Repo.insert(user)
     # ```
-    def self.insert(queryable_instance, tx : DB::Transaction?)
+    def insert(queryable_instance, tx : DB::Transaction?)
       changeset = queryable_instance.class.changeset(queryable_instance)
       return changeset unless changeset.valid?
 
       changeset.instance.updated_at_to_now
       changeset.instance.created_at_to_now
 
-      query = ADAPTER.run_on_instance(:insert, changeset, tx)
+      query = config.adapter.run_on_instance(tx || config.get_connection, :insert, changeset)
 
       if query.nil?
         changeset.add_error("insert_error", "Insert Failed")
-      elsif ADAPTER == Crecto::Adapters::Postgres || (ADAPTER == Crecto::Adapters::Mysql && tx.nil?)
+      elsif config.adapter == Crecto::Adapters::Postgres || (config.adapter == Crecto::Adapters::Mysql && tx.nil?) ||
+            (config.adapter == Crecto::Adapters::SQLite3 && tx.nil?)
         new_instance = changeset.instance.class.from_rs(query.as(DB::ResultSet)).first
         changeset = new_instance.class.changeset(new_instance) if new_instance
       end
@@ -190,7 +192,7 @@ module Crecto
       changeset
     end
 
-    def self.insert(queryable_instance)
+    def insert(queryable_instance)
       insert(queryable_instance, nil)
     end
 
@@ -201,7 +203,7 @@ module Crecto
     # changeset = User.changeset(user)
     # Repo.insert(changeset)
     # ```
-    def self.insert(changeset : Crecto::Changeset::Changeset)
+    def insert(changeset : Crecto::Changeset::Changeset)
       insert(changeset.instance)
     end
 
@@ -210,13 +212,13 @@ module Crecto
     # ```
     # Repo.update(user)
     # ```
-    def self.update(queryable_instance, tx : DB::Transaction?)
+    def update(queryable_instance, tx : DB::Transaction?)
       changeset = queryable_instance.class.changeset(queryable_instance)
       return changeset unless changeset.valid?
 
       changeset.instance.updated_at_to_now
 
-      query = ADAPTER.run_on_instance(:update, changeset, tx)
+      query = config.adapter.run_on_instance(tx || config.get_connection, :update, changeset)
 
       if query.nil?
         changeset.add_error("update_error", "Update Failed")
@@ -229,7 +231,7 @@ module Crecto
       changeset
     end
 
-    def self.update(queryable_instance)
+    def update(queryable_instance)
       update(queryable_instance, nil)
     end
 
@@ -238,7 +240,7 @@ module Crecto
     # ```
     # Repo.update(changeset)
     # ```
-    def self.update(changeset : Crecto::Changeset::Changeset)
+    def update(changeset : Crecto::Changeset::Changeset)
       update(changeset.instance)
     end
 
@@ -248,16 +250,20 @@ module Crecto
     # query = Crecto::Repo::Query.where(name: "Ted", count: 0)
     # Repo.update_all(User, query, {count: 1, date: Time.now})
     # ```
-    def self.update_all(queryable, query, update_hash : Hash, tx : DB::Transaction?)
-      ADAPTER.run(:update_all, queryable, query, update_hash, tx)
+    def update_all(queryable, query, update_hash : Hash, tx : DB::Transaction?)
+      config.adapter.run(tx || config.get_connection, :update_all, queryable, query, update_hash)
     end
 
-    def self.update_all(queryable, query, update_hash : Hash)
-      ADAPTER.run(:update_all, queryable, query, update_hash, nil)
+    def update_all(queryable, query, update_hash : Hash)
+      update_all(queryable, query, update_hash, nil)
     end
 
-    def self.update_all(queryable, query, update_hash : NamedTuple)
-      update_all(queryable, query, update_hash.to_h, nil)
+    def update_all(queryable, query, update_hash : NamedTuple, tx : DB::Transaction?)
+      update_all(queryable, query, update_hash.to_h, tx)
+    end
+
+    def update_all(queryable, query, update_hash : NamedTuple)
+      update_all(queryable, query, update_hash, nil)
     end
 
     # Delete a shema instance from the data store.
@@ -265,26 +271,22 @@ module Crecto
     # ```
     # Repo.delete(user)
     # ```
-    def self.delete(queryable_instance, tx : DB::Transaction?)
+    def delete(queryable_instance, tx : DB::Transaction?)
       changeset = queryable_instance.class.changeset(queryable_instance)
       return changeset unless changeset.valid?
 
-      query = ADAPTER.run_on_instance(:delete, changeset, tx)
+      check_dependents(changeset, tx)
+      query = config.adapter.run_on_instance(tx || config.get_connection, :delete, changeset)
 
       if query.nil?
         changeset.add_error("delete_error", "Delete Failed")
-      else
-        if tx.nil?
-          new_instance = changeset.instance.class.from_rs(query.as(DB::ResultSet)).first
-          changeset = new_instance.class.changeset(new_instance) if new_instance
-        end
       end
 
       changeset.action = :delete
       changeset
     end
 
-    def self.delete(queryable_instance)
+    def delete(queryable_instance)
       delete(queryable_instance, nil)
     end
 
@@ -293,7 +295,7 @@ module Crecto
     # ```
     # Repo.delete(changeset)
     # ```
-    def self.delete(changeset : Crecto::Changeset::Changeset)
+    def delete(changeset : Crecto::Changeset::Changeset)
       delete(changeset.instance)
     end
 
@@ -303,13 +305,14 @@ module Crecto
     # query = Crecto::Repo::Query.where(name: "Fred")
     # Repo.delete_all(User, query)
     # ```
-    def self.delete_all(queryable, query = Query.new)
-      ADAPTER.run(:delete_all, queryable, query)
+    def delete_all(queryable, query : Query?, tx : DB::Transaction?)
+      query = Query.new if query.nil?
+      check_dependents(queryable, query, tx)
+      config.adapter.run(tx || config.get_connection, :delete_all, queryable, query)
     end
 
-    def self.delete_all(queryable, query : Query?, tx : DB::Transaction?)
-      query = Query.new if query.nil?
-      ADAPTER.run(:delete_all, queryable, query, tx)
+    def delete_all(queryable, query = Query.new)
+      delete_all(queryable, query, nil)
     end
 
     # Run aribtrary sql queries. `query` will cast the output as that
@@ -320,8 +323,8 @@ module Crecto
     # ```
     # Repo.query(User, "select * from users where id > ?", [30])
     # ```
-    def self.query(queryable, sql : String, params = [] of DbValue) : Array
-      q = ADAPTER.run(:sql, sql, params).as(DB::ResultSet)
+    def query(queryable, sql : String, params = [] of DbValue) : Array
+      q = config.adapter.run(config.get_connection, :sql, sql, params).as(DB::ResultSet)
       results = queryable.from_rs(q)
       results
     end
@@ -334,14 +337,14 @@ module Crecto
     # ```
     # query = Crecto::Repo.query("select * from users where id = ?", [30])
     # ```
-    def self.query(sql : String, params = [] of DbValue) : DB::ResultSet
-      ADAPTER.run(:sql, sql, params).as(DB::ResultSet)
+    def query(sql : String, params = [] of DbValue) : DB::ResultSet
+      config.adapter.run(config.get_connection, :sql, sql, params).as(DB::ResultSet)
     end
 
-    def self.transaction(multi : Crecto::Multi)
+    def transaction(multi : Crecto::Multi)
       if multi.changesets_valid?
         total_size = multi.inserts.size + multi.deletes.size + multi.delete_alls.size + multi.updates.size + multi.update_alls.size
-        ADAPTER.get_db.transaction do |tx|
+        config.get_connection.transaction do |tx|
           (1..total_size).each do |x|
             inserts = multi.inserts.select { |i| i[:sortorder] == x }
             begin
@@ -388,21 +391,77 @@ module Crecto
       multi
     end
 
-    # Calculate the given aggregate `ag` over the given `field`
-    # Aggregate `ag` must be one of (:avg, :count, :max, :min:, :sum)
-    def self.aggregate(queryable, ag : Symbol, field : Symbol)
-      raise InvalidOption.new("Aggregate must be one of :avg, :count, :max, :min:, :sum") unless [:avg, :count, :max, :min, :sum].includes?(ag)
+    # Calculate the given aggregate `aggregate_function` over the given `field`
+    # Aggregate `aggregate_function` must be one of (:avg, :count, :max, :min:, :sum)
+    def aggregate(queryable, aggregate_function : Symbol, field : Symbol)
+      raise InvalidOption.new("Aggregate must be one of :avg, :count, :max, :min:, :sum") unless [:avg, :count, :max, :min, :sum].includes?(aggregate_function)
 
-      ADAPTER.aggregate(queryable, ag, field)
+      config.adapter.aggregate(config.get_connection, queryable, aggregate_function, field)
     end
 
-    def self.aggregate(queryable, ag : Symbol, field : Symbol, query : Crecto::Repo::Query)
-      raise InvalidOption.new("Aggregate must be one of :avg, :count, :max, :min:, :sum") unless [:avg, :count, :max, :min, :sum].includes?(ag)
+    def aggregate(queryable, aggregate_function : Symbol, field : Symbol, query : Crecto::Repo::Query)
+      raise InvalidOption.new("Aggregate must be one of :avg, :count, :max, :min:, :sum") unless [:avg, :count, :max, :min, :sum].includes?(aggregate_function)
 
-      ADAPTER.aggregate(queryable, ag, field, query)
+      config.adapter.aggregate(config.get_connection, queryable, aggregate_function, field, query)
     end
 
-    private def self.add_preloads(results, queryable, preloads)
+    private def check_dependents(changeset, tx : DB::Transaction?) : Nil
+      return if changeset.instance.class.destroy_associations.empty? && changeset.instance.class.nullify_associations.empty?
+      # delete
+      changeset.instance.class.destroy_associations.each do |destroy_assoc|
+        delete_dependents(changeset.instance.class, destroy_assoc, changeset.instance.pkey_value, tx)
+      end
+
+      # nullify
+      changeset.instance.class.nullify_associations.each do |nullify_assoc|
+        nullify_dependents(changeset.instance.class, nullify_assoc, changeset.instance.pkey_value, tx)
+      end
+    end
+
+    private def check_dependents(queryable, query : Query, tx : DB::Transaction?)
+      return if queryable.destroy_associations.empty? && queryable.nullify_associations.empty?
+      q = query
+      q.select([queryable.primary_key_field])
+      ids = all(queryable, q).map{|o| o.pkey_value }
+      return if ids.empty?
+
+      queryable.destroy_associations.each do |destroy_assoc|
+        delete_dependents(queryable, destroy_assoc, ids, tx)
+      end
+
+      queryable.nullify_associations.each do |nullify_assoc|
+        nullify_dependents(queryable, nullify_assoc, ids, tx)
+      end
+    end
+
+    private def delete_dependents(queryable, destroy_assoc, ids, tx)
+      through_key = queryable.through_key_for_association(destroy_assoc)
+      if through_key.nil?
+        q = Crecto::Repo::Query.where(queryable.foreign_key_for_association(destroy_assoc), ids)
+        delete_all(queryable.klass_for_association(destroy_assoc), q, tx)
+      else
+        outer_klass = queryable.klass_for_association(destroy_assoc) # Project
+        join_klass = queryable.klass_for_association(through_key) # UserProject
+        query = Query.select([join_klass.primary_key_field, join_klass.foreign_key_for_association(outer_klass).to_s])
+        query = query.where(queryable.foreign_key_for_association(destroy_assoc), ids)
+        join_associations = all(join_klass, query)
+        outer_klass_ids = join_associations.map{|ja| outer_klass.foreign_key_value_for_association(through_key, ja) }
+        join_klass_ids = join_associations.map{|ja| ja.pkey_value }
+        delete_all(join_klass,  Query.where(:id, join_klass_ids), tx) unless join_klass_ids.empty?
+        delete_all(outer_klass, Query.where(:id, outer_klass_ids), tx) unless outer_klass_ids.empty?
+      end
+    end
+
+    private def nullify_dependents(queryable, nullify_assoc, ids, tx)
+      through_key = queryable.through_key_for_association(nullify_assoc)
+      if through_key.nil?
+        foreign_key = queryable.foreign_key_for_association(nullify_assoc)
+        q = Crecto::Repo::Query.where(foreign_key, ids)
+        update_all(queryable.klass_for_association(nullify_assoc), q, { foreign_key => nil }, tx)
+      end
+    end
+
+    private def add_preloads(results, queryable, preloads)
       preloads.each do |preload|
         case queryable.association_type_for_association(preload)
         when :has_many
@@ -415,7 +474,7 @@ module Crecto
       end
     end
 
-    private def self.has_one_preload(results, queryable, preload)
+    private def has_one_preload(results, queryable, preload)
       query = Crecto::Repo::Query.where(queryable.foreign_key_for_association(preload), results[0].pkey_value)
       relation_item = all(queryable.klass_for_association(preload), query)
       unless relation_item.nil? || relation_item.empty?
@@ -423,7 +482,7 @@ module Crecto
       end
     end
 
-    private def self.has_many_preload(results, queryable, preload)
+    private def has_many_preload(results, queryable, preload)
       if queryable.through_key_for_association(preload)
         join_through(results, queryable, preload)
       else
@@ -431,7 +490,7 @@ module Crecto
       end
     end
 
-    private def self.join_single(results, queryable, preload)
+    private def join_single(results, queryable, preload)
       ids = results.map(&.pkey_value)
       query = Crecto::Repo::Query.where(queryable.foreign_key_for_association(preload), ids)
       relation_items = all(queryable.klass_for_association(preload), query)
@@ -447,7 +506,7 @@ module Crecto
       end
     end
 
-    private def self.join_through(results, queryable, preload)
+    private def join_through(results, queryable, preload)
       ids = results.map(&.pkey_value)
       join_query = Crecto::Repo::Query.where(queryable.foreign_key_for_association(preload), ids)
       # UserProjects
@@ -480,7 +539,7 @@ module Crecto
       end
     end
 
-    private def self.belongs_to_preload(results, queryable, preload)
+    private def belongs_to_preload(results, queryable, preload)
       ids = results.map { |r| queryable.foreign_key_value_for_association(preload, r) }
       return if ids.empty?
       query = Crecto::Repo::Query.where(id: ids)

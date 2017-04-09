@@ -18,17 +18,15 @@ dependencies:
     github: fridgerator/crecto
 ```
 
-Include a database adapter (currently only postgres and mysql have been tested)
+Include a database adapter:
 
 #### Postgres
 
 Include [crystal-pg](https://github.com/will/crystal-pg) in your project
 
-Make sure you have `ENV["PG_URL"]` set
-
 in your application:
 
-```
+```crystal
 require "pg"
 require "crecto"
 ```
@@ -37,12 +35,22 @@ require "crecto"
 
 Include [crystal-mysql](https://github.com/crystal-lang/crystal-mysql) in your project
 
-Make sure you have `ENV["MYSQL_URL"]` set
-
 in your application:
 
-```
+```crystal
 require "mysql"
+require "crecto"
+```
+
+#### Sqlite
+
+~~Include [crystal-sqlite3](https://github.com/crystal-lang/crystal-sqlite3) in your project~~
+Include [zhomarts fork of of crystal-sqlite3](https://github.com/Zhomart/crystal-sqlite3) in your project
+
+in your appplication:
+
+```crystal
+require "sqlite3"
 require "crecto"
 ```
 
@@ -54,21 +62,51 @@ require "crecto"
 - [x] has_one
 - [ ] insert_all
 - [x] MySQL adapter
-- [ ] SQLite adapter
+- [x] SQLite adapter
 - [x] Associations
 - [x] Preload
 - [x] Joins
 - [x] Repo#aggregate ([ecto link](https://hexdocs.pm/ecto/Ecto.Repo.html#c:aggregate/4))
 - [ ] [Embeds](https://robots.thoughtbot.com/embedding-elixir-structs-in-ecto-models)
 - [x] Transactions / Multi
-- [ ] Association / dependent options (`dependent: :delete_all`, `dependent: :nilify_all`, etc)
+- [x] Association / dependent options (`dependent: :delete`, `dependent: :nullify`, etc)
 - [ ] Unique constraint
 - [x] Combine database adapters (base class). Currently there is unecessary duplication
 
 ## Usage
 
 ```crystal
-require "crecto"
+
+# First create a Repo.  The Repo maps to the datastore and the database adapter and is used to run queries.
+# You can even create multiple repos if you need to access multiple databases
+
+module Repo
+  extend Crecto::Repo
+
+  config do |conf|
+    conf.adapter = Crecto::Adapters::Postgres # or Crecto::Adapters::Mysql or Crecto::Adapters::SQLite3
+    conf.database = "database_name"
+    conf.hostname = "localhost"
+    conf.username = "user"
+    conf.password = "password"
+    conf.port = 5342
+    # you can also set initial_pool_size, max_pool_size, max_idle_pool_size,
+    #  checkout_timeout, retry_attempts, and retry_delay
+  end
+end
+
+module SqliteRepo
+  extend Crecto::Repo
+
+  config do |conf|
+    conf.adapter = Crecto::Adapters::SQLite3
+    conf.database = "./path/to/database.db"
+  end
+end
+
+# shortcut variables, optional
+Query = Crecto::Repo::Query
+Multi = Crecto::Multi
 
 #
 # Define table name, fields and validations in your class
@@ -76,21 +114,20 @@ require "crecto"
 class User < Crecto::Model
 
   schema "users" do
-    field :age, Int32
+    field :age, Int32 # or use `PkeyValue` alias: `field :age, PkeyValue`
     field :name, String
     field :is_admin, Bool
     field :temporary_info, Float64, virtual: true
-    has_many :posts, Post
+    has_many :posts, Post, dependent: :destroy
   end
 
   validate_required [:name, :age]
-  validate_format :name, /[*a-zA-Z]/
+  validate_format :name, /^[a-zA-Z]*$/
 end
 
 class Post < Crecto::Model
   
   schema "posts" do
-    field :user_id, PkValue
     belongs_to :user, User
   end
 end
@@ -114,20 +151,28 @@ changeset.valid? # true
 #
 # Use Repo to insert into database
 #
-changeset = Crecto::Repo.insert(user)
+changeset = Repo.insert(user)
 puts changeset.errors # []
 
 #
 # User Repo to update database
 #
 user.name = "new name"
-changeset = Crecto::Repo.update(user)
+changeset = Repo.update(user)
 puts changeset.instance.name # "new name"
+
+#
+# Set Associations
+#
+
+post = Post.new
+post.user = user
+Repo.insert(post)
 
 #
 # Query syntax
 #
-query = Crecto::Repo::Query
+query = Query
   .where(name: "new name")
   .where("users.age < ?", [124])
   .order_by("users.name ASC")
@@ -137,66 +182,66 @@ query = Crecto::Repo::Query
 #
 # All
 #
-users = Crecto::Repo.all(User, query)
+users = Repo.all(User, query)
 users.as(Array) unless users.nil?
 
 #
 # Get by primary key
 #
-user = Crecto::Repo.get(User, 1)
+user = Repo.get(User, 1)
 user.as(User) unless user.nil?
 
 #
 # Get by fields
 #
-Crecto::Repo.get_by(User, name: "new name", id: 1121)
+Repo.get_by(User, name: "new name", id: 1121)
 user.as(User) unless user.nil?
 
 #
 # Delete
 #
-changeset = Crecto::Repo.delete(user)
+changeset = Repo.delete(user)
 
 #
 # Associations
 #
 
-user = Crecto::Repo.get(User, id).as(User)
-posts = Crecto::Repo.all(user, :posts)
+user = Repo.get(User, id).as(User)
+posts = Repo.all(user, :posts)
 
 #
 # Preload associations
 #
-users = Crecto::Repo.all(User, Crecto::Query.new, preload: [:posts])
+users = Repo.all(User, Query.new, preload: [:posts])
 users[0].posts # has_many relation is preloaded
 
-posts = Crecto::Repo.all(Post, Crecto::Query.new, preload: [:user])
+posts = Repo.all(Post, Query.new, preload: [:user])
 posts[0].user # belongs_to relation preloaded
 
 #
 # Aggregate functions
 #
 # can use the following aggregate functions: :avg, :count, :max, :min:, :sum
-Crecto::Repo.aggregate(User, :count, :id)
-Crecto::Repo.aggregate(User, :avg, :age, Crecto::Repo::Query.where(name: 'Bill'))
+Repo.aggregate(User, :count, :id)
+Repo.aggregate(User, :avg, :age, Query.where(name: 'Bill'))
 
 #
 # Multi / Transactions
 #
 
 # create the multi instance
-multi = Crecto::Multi.new
+multi = Multi.new
 
 # build the transactions
 multi.insert(insert_user)
 multi.delete(post)
 multi.delete_all(Comment)
 multi.update(update_user)
-multi.update_all(User, Crecto::Repo::Query.where(name: "stan"), {name: "stan the man"})
+multi.update_all(User, Query.where(name: "stan"), {name: "stan the man"})
 multi.insert(new_user)
 
 # insert the multi using a transaction
-Crecto::Repo.transaction(multi)
+Repo.transaction(multi)
 
 # check for errors
 # If there are any errors in any of the transactions, the database will rollback as if none of the transactions happened
@@ -213,10 +258,10 @@ end
 user = User.new
 user.settings = {"one" => "test", "two" => 123, "three" => 12321319323298}
 
-Crecto::Repo.insert(user)
+Repo.insert(user)
 
-query = Crecto::Repo::Query.where("settings @> '{\"one\":\"test\"}'")
-users = Crecto::Repo.all(UserJson, query)
+query = Query.where("settings @> '{\"one\":\"test\"}'")
+users = Repo.all(UserJson, query)
 
 #
 # Database Logging
@@ -241,16 +286,19 @@ Crecto::DbLogger.set_handler(f)
 
 ### Development Notes
 
-When developing against crecto, the database must exist in Postgres prior to
-testing. The environment variable `PG_URL` must be set to the database that will
-be used for testing. A couple commands have been set up to ease development:
+When developing against crecto, the database must exist prior to
+testing. There are migrations for each database type in `spec/migrations`,
+and references on how to migrate then in the `.travis.yml` file.
 
-*  `make migrate` - This will remigrate the testing schema to the database.
-*  `make spec` - Runs the crystal specs for crecto
-*  `make all` - Runs the migration and subsequently runs specs
+Create a new file `spec/repo.cr` and create a module name `Repo` to use for testing.
+There are example repos for each database type in the spec folder: `travis_pg_repo.cr`,
+`travis_mysql_repo.cr`, and `travis_sqlite_repo.cr`
+
+When submitting a pull request, please test against all 3 databases.
 
 ## Thanks / Inspiration
 
 * [Ecto](https://github.com/elixir-ecto/ecto)
+* [AciveRecord](https://github.com/rails/rails/tree/master/activerecord)
 * [active_record.cr](https://github.com/waterlink/active_record.cr)
 * [crystal-api-backend](https://github.com/dantebronto/crystal-api-backend)

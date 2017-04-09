@@ -4,7 +4,10 @@
 /.crystal/
 /.shards/
 db/
+/spec/repo.cr
 
+# SQLite3 testing database
+crecto_test.db
 
 # Libraries don't need dependency lock
 # Dependencies will be locked in application that uses them

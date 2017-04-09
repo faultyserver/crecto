@@ -3,7 +3,7 @@ require "../helper_methods"
 
 module Crecto
   module Adapters
-    module Mysql
+    module SQLite3
       def exec_execute(conn : DB::Database, query_string, params, tx : DB::Transaction?)
         Crecto::Adapters.sqls << query_string
         previous_def(conn, query_string, params, tx)
@@ -32,19 +32,19 @@ module Crecto
   end
 end
 
-if Repo.config.adapter == Crecto::Adapters::Mysql
+if Repo.config.adapter == Crecto::Adapters::SQLite3
 
-  describe "Crecto::Adapters::Mysql" do
+  describe "Crecto::Adapters::SQLite3" do
     Spec.before_each do
       Crecto::Adapters.clear_sql
     end
 
     it "should generate insert query" do
-      Repo.insert(User.from_json(%({ "name": "chuck" })))
+      u = Repo.insert(User.from_json(%({ "name": "chuck", "yep": false })))
       check_sql do |sql|
         sql.should eq([
           "INSERT INTO users (name, things, nope, yep, some_date, pageviews, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-          "SELECT * FROM users WHERE id = LAST_INSERT_ID()"
+          "SELECT * FROM users WHERE id = #{u.instance.id}"
         ])
       end
     end
@@ -72,7 +72,7 @@ if Repo.config.adapter == Crecto::Adapters::Mysql
     end
 
     it "should generate update queries" do
-      changeset = Repo.insert(User.from_json(%({ "name": "linus" })))
+      changeset = Repo.insert(User.from_json(%({ "name": "linus", "yep": true })))
       Crecto::Adapters.clear_sql
       changeset.instance.name = "snoopy"
       changeset.instance.yep = false
