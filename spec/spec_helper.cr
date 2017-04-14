@@ -22,6 +22,7 @@ class User < Crecto::Model
     field :name, String
     field :things, Int32 | Int64
     field :stuff, Int32, virtual: true
+    field :smallnum, Int16
     field :nope, Float32 | Float64
     field :yep, Bool
     field :some_date, Time
@@ -180,6 +181,13 @@ end
 class UserJson < Crecto::Model
   schema "users_json" do
     field :settings, Json
+  end
+end
+
+class UserUUID < Crecto::Model
+  schema "users_uuid" do
+    field :uuid, String, primary_key: true
+    field :name, String
   end
 end
 

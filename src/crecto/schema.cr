@@ -39,6 +39,8 @@ module Crecto
     # :nodoc:
     PRIMARY_KEY_FIELD_SYMBOL = :id
     # :nodoc:
+    PRIMARY_KEY_FIELD_TYPE = "PkeyValue"
+    # :nodoc:
     ASSOCIATIONS = Array(NamedTuple(association_type: Symbol,
     key: Symbol,
     this_klass: Model.class,
@@ -52,7 +54,7 @@ module Crecto
     macro schema(table_name, &block)
 
       # macro constants
-      VALID_FIELD_TYPES = [String, Int64, Int32, Float32, Float64, Bool, Time, Int32 | Int64, Float32 | Float64, Json, PkeyValue]
+      VALID_FIELD_TYPES = [String, Int64, Int32, Int16, Float32, Float64, Bool, Time, Int32 | Int64, Float32 | Float64, Json, PkeyValue]
       VALID_FIELD_OPTIONS = [:primary_key, :virtual]
       FIELDS = [] of NamedTuple(name: Symbol, type: String)
 
@@ -79,6 +81,7 @@ module Crecto
       {% if opts[:primary_key] %}
         PRIMARY_KEY_FIELD = {{field_name.id.stringify}}
         PRIMARY_KEY_FIELD_SYMBOL = {{field_name.id.symbolize}}
+        PRIMARY_KEY_FIELD_TYPE = {{field_type.id.stringify}}
         {% primary_key = true %}
       {% elsif opts[:virtual] %}
         {% virtual = true %}
@@ -124,7 +127,7 @@ module Crecto
            "#{field[:name].id.stringify}: {type: #{field_type.id}, nilable: true}"
          end %}
 
-      {% mapping.push(PRIMARY_KEY_FIELD.id.stringify + ": {type: PkeyValue, nilable: true}") %}
+      {% mapping.push(PRIMARY_KEY_FIELD.id.stringify + ": {type: #{PRIMARY_KEY_FIELD_TYPE.id}, nilable: true}") %}
 
       {% unless CREATED_AT_FIELD == nil %}
         {% mapping.push(CREATED_AT_FIELD.id.stringify + ": {type: Time, nilable: true}") %}
@@ -163,12 +166,14 @@ module Crecto
           query_hash[{{UPDATED_AT_FIELD.id.symbolize}}] = self.{{UPDATED_AT_FIELD.id}}.nil? ? nil : (self.{{UPDATED_AT_FIELD.id}}.as(Time).local? ? self.{{UPDATED_AT_FIELD.id}}.as(Time).to_utc : self.{{UPDATED_AT_FIELD.id}})
         {% end %}
 
+        query_hash[{{PRIMARY_KEY_FIELD.id.symbolize}}] = self.{{PRIMARY_KEY_FIELD.id}} unless self.{{PRIMARY_KEY_FIELD.id}}.nil?
+
         query_hash
       end
 
       # Returns the value of the primary key field
       def pkey_value
-        self.{{PRIMARY_KEY_FIELD.id}}.as(PkeyValue)
+        self.{{PRIMARY_KEY_FIELD.id}}
       end
 
       def update_primary_key(val)
