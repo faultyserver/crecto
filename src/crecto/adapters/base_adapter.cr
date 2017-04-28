@@ -88,9 +88,9 @@ module Crecto
       end
 
       private def get(conn, queryable, id)
-        q = ["SELECT *"]
-        q.push "FROM #{queryable.table_name}"
-        q.push "WHERE #{queryable.primary_key_field}=$1"
+        q = ["SELECT \"#{queryable.table_name}\".*"]
+        q.push "FROM \"#{queryable.table_name}\""
+        q.push "WHERE \"#{queryable.table_name}\".\"#{queryable.primary_key_field}\"=$1"
         q.push "LIMIT 1"
 
         execute(conn, q.join(" "), [id])
@@ -100,7 +100,7 @@ module Crecto
         fields_values = instance_fields_and_values(changeset.instance)
 
         q = ["INSERT INTO"]
-        q.push "#{changeset.instance.class.table_name}"
+        q.push "\"#{changeset.instance.class.table_name}\""
         q.push "(#{fields_values[:fields]})"
         q.push "VALUES"
         q.push "(#{(1..fields_values[:values].size).map { "?" }.join(", ")})"
@@ -127,7 +127,7 @@ module Crecto
       end
 
       private def build_aggregate_query(queryable, ag, field)
-        "SELECT #{ag}(#{field}) from #{queryable.table_name}"
+        "SELECT #{ag}(#{field}) from \"#{queryable.table_name}\""
       end
 
       private def all(conn, queryable, query)
@@ -136,11 +136,11 @@ module Crecto
         q = ["SELECT"]
 
         if query.distincts.nil?
-          q.push query.selects.map { |s| "#{queryable.table_name}.#{s}" }.join(", ")
+          q.push query.selects.map { |s| s == "*" ? "\"#{queryable.table_name}\".#{s}" : "\"#{s}\"" }.join(", ")
         else
           q.push "DISTINCT #{query.distincts}"
         end
-        q.push "FROM #{queryable.table_name}"
+        q.push "FROM \"#{queryable.table_name}\""
         q.push joins(queryable, query, params) if query.joins.any?
         q.push wheres(queryable, query, params) if query.wheres.any?
         q.push or_wheres(queryable, query, params) if query.or_wheres.any?
@@ -165,13 +165,13 @@ module Crecto
 
       private def delete_begin(table_name)
         q = ["DELETE FROM"]
-        q.push "#{table_name}"
+        q.push "\"#{table_name}\""
       end
 
       private def delete(conn, changeset)
         q = delete_begin(changeset.instance.class.table_name)
         q.push "WHERE"
-        q.push "#{changeset.instance.class.primary_key_field}=#{changeset.instance.pkey_value}"
+        q.push "\"#{changeset.instance.class.primary_key_field}\"=#{changeset.instance.pkey_value}"
         q.push "RETURNING *" if conn.is_a?(DB::Database)
 
         exec_execute(conn, q.join(" "))
@@ -222,7 +222,7 @@ module Crecto
         where.keys.map do |key|
           [where[key]].flatten.uniq.each { |param| params.push(param) unless param.is_a?(Nil) }
 
-          results = " #{queryable.table_name}.#{key.to_s}"
+          results = " \"#{queryable.table_name}\".\"#{key.to_s}\""
           results += if where[key].is_a?(Array)
                        " IN (" + where[key].as(Array).uniq.map { |p| "?" }.join(", ") + ")"
                      elsif where[key].is_a?(Nil)
@@ -248,11 +248,11 @@ module Crecto
         association_klass = queryable.klass_for_association(join)
 
         q = ["INNER JOIN"]
-        q.push association_klass.table_name
+        q.push "\"#{association_klass.table_name}\""
         q.push "ON"
-        q.push association_klass.table_name + "." + queryable.foreign_key_for_association(join).to_s
+        q.push "\"#{association_klass.table_name}\"" + "." + "\"#{queryable.foreign_key_for_association(join).to_s}\""
         q.push "="
-        q.push queryable.table_name + '.' + queryable.primary_key_field
+        q.push "\"#{queryable.table_name}\"" + '.' + "\"#{queryable.primary_key_field}\""
         q.join(" ")
       end
 
@@ -261,17 +261,17 @@ module Crecto
         join_klass = queryable.klass_for_association(queryable.through_key_for_association(join).as(Symbol))
 
         q = ["INNER JOIN"]
-        q.push join_klass.table_name
+        q.push "\"#{join_klass.table_name}\""
         q.push "ON"
-        q.push join_klass.table_name + "." + queryable.foreign_key_for_association(join).to_s
+        q.push "\"#{join_klass.table_name}\"" + "." + "#{queryable.foreign_key_for_association(join).to_s}"
         q.push "="
-        q.push queryable.table_name + "." + queryable.primary_key_field
+        q.push "\"#{queryable.table_name}\"" + "." + "\"#{queryable.primary_key_field}\""
         q.push "INNER JOIN"
-        q.push association_klass.table_name
+        q.push "\"#{association_klass.table_name}\""
         q.push "ON"
-        q.push association_klass.table_name + "." + association_klass.primary_key_field
+        q.push "\"#{association_klass.table_name}\"" + "." + "\"#{association_klass.primary_key_field}\""
         q.push "="
-        q.push join_klass.table_name + "." + join_klass.foreign_key_for_association(association_klass).to_s
+        q.push "\"#{join_klass.table_name}\"" + "." + "#{join_klass.foreign_key_for_association(association_klass)}"
         q.join(" ")
       end
 
