@@ -1,5 +1,5 @@
 module Crecto
-  module Changeset(T)
+  module OldChangeset(T)
     # Changeset instance returned when evaluating a changeset.
     #
     # ```
@@ -14,7 +14,7 @@ module Crecto
     # * `changes` - An array of changes on fields
     # * `source` - Hash of the original data
     #
-    class Changeset(T)
+    class OldChangeset(T)
       # :nodoc:
       property action : Symbol?
       # :nodoc:
