@@ -1,5 +1,9 @@
 module Crecto
+  # T can be any class that defines a CHANGESET_FIELDS constant containing
+  # an array of NamedTuple(name: Symbol, type: String).
   module Changeset(T)
+    # Create and return a new Changeset for the given instance, first passing
+    # it to the given block to perform casting and validation.
     def make_changeset(instance : T, &block)
       changeset = Changeset(T).new(instance)
       with changeset yield
@@ -11,6 +15,13 @@ module Crecto
 
     # A record containing a single constraint for a changeset field.
     alias Constraint = NamedTuple(field: Symbol, type: Symbol, name: String, message: String)
+
+    macro extended
+      macro set_changeset_fields(**fields)
+        CHANGESET_FIELDS = \{{fields}}
+      end
+    end
+
 
     class Changeset(T)
       # The action performed with this changeset. Usually set automatically
@@ -34,57 +45,95 @@ module Crecto
 
       # Indication of whether this changeset is valid.
       private property? valid = true
-      # A hash representation of the instance behind this changeset, used as a
-      # static and dynamically-accesible representation of the instance.
+      # A hash representation of the initial data for this changeset, used as a
+      # static and dynamically-accesible representation of an instance to avoid
+      # modifying an external data while working with the changeset.
       private property data : Hash(Symbol, DbValue | ArrayDbValue)
-      # A reference to the instance behind this changeset. Generally this is
-      # a read-only property.
-      private getter instance : T
 
       # Values to be considered as "empty" for this changeset. Mainly used when
       # checking presence for `validate_required`.
       property empty_values = ["", nil]
 
 
-      def initialize(@instance : T)
-        @data = @instance.to_query_hash(true)
+      # Initialize a changeset with data from the given instance. This method
+      # expects the instance type to define a `to_query_hash` method that
+      # returns a hash of fields to values for this changeset to keep.
+      def initialize(instance : T)
+        @data = instance.to_query_hash(true)
+      end
+
+      # Initialize a changeset directly with the given hash of data.
+      def initialize(@data : Hash(Symbol, DbValue | ArrayDbValue))
+      end
+
+      # Initialize a changeset with no initial data. All values casted into
+      # the changeset will then be considered changes from the initial data.
+      def initialize
+        @data = {} of Symbol => DbValue | ArrayDbValue
       end
 
 
+      # Apply the changes stored in this changeset to the given instance,
+      # regardless of whether those changes are valid. Returns the modified
+      # instance directly.
+      # This method may raise a runtime error if a value from the changes
+      # cannot be converted to its expected type on the instance. Generally,
+      # this can easily be avoided by only creating changes through `cast`,
+      # where those conversions are done safely.
+      def apply_changes!(instance : T)
+        changes.each do |field, value|
+          {% begin %}
+            case field
+              {% for changeset_field, type in T::CHANGESET_FIELDS %}
+                when :{{changeset_field}}
+                  {% expected_type = T.instance_vars.find(&.name.==(changeset_field.id)).type %}
+                  instance.{{changeset_field.id}} = value.as({{expected_type}})
+              {% end %}
+            end
+          {% end %}
+        end
+        instance
+      end
+
+
+      # Applies the values from the given attributes hash as changes in this
+      # changeset. Only the fields given by `permitted` are allowed as changes
+      # from the attribute hash, essentially acting as a whitelist for changes.
       def cast(attrs : Hash(Symbol, V), permitted : Array(Symbol)) : self forall V
-        @valid = true
+        self.valid = true
 
         permitted.each do |key|
-          if given_value = attrs[key]?
-            changes[key] = given_value
+          if attrs.has_key?(key)
+            self.changes[key] = attrs[key]
           end
         end
         self
       end
 
       def cast(attrs : Hash(String, V), permitted : Array(Symbol)) : self forall V
-        @valid = true
+        self.valid = true
 
         permitted.each do |key|
-          if given_value = attrs[key.to_s]?
-            changes[key] = given_value
+          if attrs.has_key?(key.to_s)
+            self.changes[key] = attrs[key.to_s]
           end
         end
         self
       end
 
       def cast(attrs : NamedTuple, permitted : Array(Symbol))
-        @valid = true
+        self.valid = true
 
         permitted.each do |key|
-          if given_value = attrs[key]?
-            changes[key] = given_value
+          if attrs.has_key?(key.to_s)
+            self.changes[key] = attrs[key.to_s]
           end
         end
         self
       end
 
-
+      # Validates that the given fields are present in the changeset with a
+      # value that is not considered "empty" by the changeset's `empty_values`.
       def validate_required(fields : Array(Symbol))
         @required.concat(fields)
 
@@ -104,7 +153,7 @@ module Crecto
       # validating uniqueness.
       def unique_constraint(field : Symbol, name : String? = nil)
         name ||= "some_index"
-        add_constraint(field, :unique, "uniqueness constraint #{name}", message: "must be unique")
+        add_constraint(field, :unique, name, message: "must be unique")
       end
 
 
@@ -131,6 +180,10 @@ module Crecto
 
       private def get_field(field : Symbol)
         changes[field]? || data[field]?
+      end
+
+      private def get_change(field : Symbol)
+        changes[field]?
       end
     end
   end

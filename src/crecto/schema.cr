@@ -311,7 +311,6 @@ module Crecto
           self.{{CRECTO_CREATED_AT_FIELD.id}} = Time.utc_now
         {% end %}
       end
-
     end
   end
 end
