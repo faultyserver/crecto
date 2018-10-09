@@ -1,3 +1,5 @@
+require "./type_cast.cr"
+
 module Crecto
   # Schema is used to define the table name, and inside the schema block define the database field (column) names.
   #
@@ -228,19 +230,19 @@ module Crecto
                 {% if model_field[:type].id.stringify == "String" %}
                   @{{model_field[:name].id}} = value.to_s
                 {% elsif model_field[:type].id.stringify == "Int16" %}
-                  @{{model_field[:name].id}} = TypeCast.cast_to_int16(value)
+                  @{{model_field[:name].id}} = ::Crecto::TypeCast.cast_to_int16(value)
                 {% elsif model_field[:type].id.stringify.includes?("Int") %}
-                  @{{model_field[:name].id}} = TypeCast.cast_to_int(value)
+                  @{{model_field[:name].id}} = ::Crecto::TypeCast.cast_to_int(value)
                 {% elsif model_field[:type].id.stringify == "PkeyValue" %}
-                  @{{model_field[:name].id}} = TypeCast.cast_to_int(value)
+                  @{{model_field[:name].id}} = ::Crecto::TypeCast.cast_to_int(value)
                 {% elsif model_field[:type].id.stringify.includes?("Float") %}
-                  @{{model_field[:name].id}} = TypeCast.cast_to_float(value)
+                  @{{model_field[:name].id}} = ::Crecto::TypeCast.cast_to_float(value)
                 {% elsif model_field[:type].id.stringify == "Bool" %}
-                  @{{model_field[:name].id}} = TypeCast.cast_to_bool(value)
+                  @{{model_field[:name].id}} = ::Crecto::TypeCast.cast_to_bool(value)
                 {% elsif model_field[:type].id.stringify == "Json" %}
                   @{{model_field[:name].id}} = JSON.parse(value)
                 {% elsif model_field[:type].id.stringify == "Time" %}
-                  @{{model_field[:name].id}} = TypeCast.cast_to_time(value)
+                  @{{model_field[:name].id}} = ::Crecto::TypeCast.cast_to_time(value)
                 {% end %}
             {% end %}
           end
@@ -291,19 +293,19 @@ module Crecto
                 {% if field[:type].id.stringify == "String" %}
                   @{{field[:name].id}} = value.to_s
                 {% elsif field[:type].id.stringify == "Int16" %}
-                  @{{field[:name].id}} = TypeCast.cast_to_int16(value)
+                  @{{field[:name].id}} = ::Crecto::TypeCast.cast_to_int16(value)
                 {% elsif field[:type].id.stringify.includes?("Int") %}
-                  @{{field[:name].id}} = TypeCast.cast_to_int(value)
+                  @{{field[:name].id}} = ::Crecto::TypeCast.cast_to_int(value)
                 {% elsif field[:type].id.stringify == "PkeyValue" %}
-                  @{{field[:name].id}} = TypeCast.cast_to_int(value)
+                  @{{field[:name].id}} = ::Crecto::TypeCast.cast_to_int(value)
                 {% elsif field[:type].id.stringify.includes?("Float") %}
-                  @{{field[:name].id}} = TypeCast.cast_to_float(value)
+                  @{{field[:name].id}} = ::Crecto::TypeCast.cast_to_float(value)
                 {% elsif field[:type].id.stringify == "Bool" %}
-                  @{{field[:name].id}} = TypeCast.cast_to_bool(value)
+                  @{{field[:name].id}} = ::Crecto::TypeCast.cast_to_bool(value)
                 {% elsif field[:type].id.stringify == "Json" %}
                   @{{field[:name].id}} = JSON.parse(value)
                 {% elsif field[:type].id.stringify == "Time" %}
-                  @{{field[:name].id}} = TypeCast.cast_to_time(value)
+                  @{{field[:name].id}} = ::Crecto::TypeCast.cast_to_time(value)
                 {% end %}
               end
             {% end %}
