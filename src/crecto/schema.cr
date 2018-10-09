@@ -226,23 +226,21 @@ module Crecto
             {% for model_field in CRECTO_FIELDS %}
               when "{{model_field[:name].id}}"
                 {% if model_field[:type].id.stringify == "String" %}
-                  self.{{model_field[:name].id}} = value.try(&.to_s)
+                  @{{model_field[:name].id}} = value.to_s
                 {% elsif model_field[:type].id.stringify == "Int16" %}
-                  self.{{model_field[:name].id}} = value.try(&.to_i16) if value.try(&.to_i16?)
+                  @{{model_field[:name].id}} = TypeCast.cast_to_int16(value)
                 {% elsif model_field[:type].id.stringify.includes?("Int") %}
-                  self.{{model_field[:name].id}} = to_int(value)
+                  @{{model_field[:name].id}} = TypeCast.cast_to_int(value)
                 {% elsif model_field[:type].id.stringify == "PkeyValue" %}
-                  self.{{model_field[:name].id}} = to_int(value)
+                  @{{model_field[:name].id}} = TypeCast.cast_to_int(value)
                 {% elsif model_field[:type].id.stringify.includes?("Float") %}
-                  self.{{model_field[:name].id}} = to_float(value)
+                  @{{model_field[:name].id}} = TypeCast.cast_to_float(value)
                 {% elsif model_field[:type].id.stringify == "Bool" %}
-                  self.{{model_field[:name].id}} = !!value
+                  @{{model_field[:name].id}} = TypeCast.cast_to_bool(value)
                 {% elsif model_field[:type].id.stringify == "Json" %}
-                  self.{{model_field[:name].id}} = JSON.parse(value)
+                  @{{model_field[:name].id}} = JSON.parse(value)
                 {% elsif model_field[:type].id.stringify == "Time" %}
-                  begin
-                    self.{{model_field[:name].id}} = Time.parse!(value, "%F %T %z")
-                  end
+                  @{{model_field[:name].id}} = TypeCast.cast_to_time(value)
                 {% end %}
             {% end %}
           end
@@ -254,7 +252,6 @@ module Crecto
       private def to_int(value); value; end
       private def to_float(value : String); Float64.new(value); end
       private def to_float(value); value; end
-
 
       # Builds a hash from all `CRECTO_FIELDS` defined
       def to_query_hash(include_virtual=false)
@@ -343,50 +340,6 @@ module Crecto
       def created_at_to_now
         {% unless CRECTO_CREATED_AT_FIELD == nil %}
           self.{{CRECTO_CREATED_AT_FIELD.id}} = Time.utc_now
-        {% end %}
-      end
-
-      def cast(**attributes : **T) forall T
-        \{% for field in CRECTO_FIELDS.select { |field| T.keys.includes?(field[:name].id) } %}
-           if attributes.has_key?(\{{ field[:name] }})
-             self.\{{ field[:name].id }} = attributes[\{{ field[:name] }}]
-           end
-        \{% end %}
-      end
-
-      def cast(attributes : NamedTuple, whitelist : Tuple = attributes.keys)
-        cast(attributes.to_h, whitelist.to_a)
-      end
-
-      def cast(attributes : Hash(Symbol, T), whitelist : Array(Symbol) = attributes.keys) forall T
-        {% if CRECTO_FIELDS.size > 0 %}
-          cast_attributes = {} of Symbol => Union({{ CRECTO_FIELDS.map { |field| field[:type].id }.splat }})
-
-          attributes.each do |key, value|
-            cast_attributes[key] = value
-          end
-
-          {% for field in CRECTO_FIELDS %}
-             if whitelist.includes?({{ field[:name] }}) && attributes.has_key?({{ field[:name] }})
-               self.{{ field[:name].id }} = cast_attributes[{{ field[:name] }}].as({{ field[:type].id }})
-             end
-          {% end %}
-        {% end %}
-      end
-
-      def cast(attributes : Hash(String, T), whitelist : Array(String) = attributes.keys) forall T
-        {% if CRECTO_FIELDS.size > 0 %}
-          cast_attributes = {} of String => Union({{ CRECTO_FIELDS.map { |field| field[:type].id }.splat }})
-
-          attributes.each do |key, value|
-            cast_attributes[key] = value
-          end
-
-          {% for field in CRECTO_FIELDS %}
-            if whitelist.includes?({{ field[:name].id.stringify }}) && attributes.has_key?({{ field[:name].id.stringify }})
-              self.{{ field[:name].id }} = cast_attributes[{{ field[:name].id.stringify }}].as({{ field[:type].id }})
-            end
-          {% end %}
         {% end %}
       end
     end
