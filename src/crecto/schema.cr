@@ -219,6 +219,42 @@ module Crecto
         {% end %}
       {% end %}
 
+      # Build general field casting method
+      def cast(attrs)
+        attrs.each do |field, value|
+          case field.to_s
+            {% for model_field in CRECTO_FIELDS %}
+              when "{{model_field[:name].id}}"
+                {% if model_field[:type].id.stringify == "String" %}
+                  self.{{model_field[:name].id}} = value.try(&.to_s)
+                {% elsif model_field[:type].id.stringify == "Int16" %}
+                  self.{{model_field[:name].id}} = value.try(&.to_i16) if value.try(&.to_i16?)
+                {% elsif model_field[:type].id.stringify.includes?("Int") %}
+                  self.{{model_field[:name].id}} = to_int(value)
+                {% elsif model_field[:type].id.stringify == "PkeyValue" %}
+                  self.{{model_field[:name].id}} = to_int(value)
+                {% elsif model_field[:type].id.stringify.includes?("Float") %}
+                  self.{{model_field[:name].id}} = to_float(value)
+                {% elsif model_field[:type].id.stringify == "Bool" %}
+                  self.{{model_field[:name].id}} = !!value
+                {% elsif model_field[:type].id.stringify == "Json" %}
+                  self.{{model_field[:name].id}} = JSON.parse(value)
+                {% elsif model_field[:type].id.stringify == "Time" %}
+                  begin
+                    self.{{model_field[:name].id}} = Time.parse!(value, "%F %T %z")
+                  end
+                {% end %}
+            {% end %}
+          end
+        end
+        self.class.changeset(self)
+      end
+
+      private def to_int(value : String); Int32.new(value); end
+      private def to_int(value); value; end
+      private def to_float(value : String); Float64.new(value); end
+      private def to_float(value); value; end
+
 
       # Builds a hash from all `CRECTO_FIELDS` defined
       def to_query_hash(include_virtual=false)
@@ -258,21 +294,19 @@ module Crecto
                 {% if field[:type].id.stringify == "String" %}
                   @{{field[:name].id}} = value.to_s
                 {% elsif field[:type].id.stringify == "Int16" %}
-                  @{{field[:name].id}} = value.to_i16 if value.to_i16?
+                  @{{field[:name].id}} = TypeCast.cast_to_int16(value)
                 {% elsif field[:type].id.stringify.includes?("Int") %}
-                  @{{field[:name].id}} = value.to_i if value.to_i?
+                  @{{field[:name].id}} = TypeCast.cast_to_int(value)
                 {% elsif field[:type].id.stringify == "PkeyValue" %}
-                  @{{field[:name].id}} = value.to_i if value.to_i?
+                  @{{field[:name].id}} = TypeCast.cast_to_int(value)
                 {% elsif field[:type].id.stringify.includes?("Float") %}
-                  @{{field[:name].id}} = value.to_f if value.to_f?
+                  @{{field[:name].id}} = TypeCast.cast_to_float(value)
                 {% elsif field[:type].id.stringify == "Bool" %}
-                  @{{field[:name].id}} = (value == "true")
+                  @{{field[:name].id}} = TypeCast.cast_to_bool(value)
                 {% elsif field[:type].id.stringify == "Json" %}
                   @{{field[:name].id}} = JSON.parse(value)
                 {% elsif field[:type].id.stringify == "Time" %}
-                  begin
-                    @{{field[:name].id}} = Time.parse!(value, "%F %T %z")
-                  end
+                  @{{field[:name].id}} = TypeCast.cast_to_time(value)
                 {% end %}
               end
             {% end %}
