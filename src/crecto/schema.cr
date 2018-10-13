@@ -228,21 +228,21 @@ module Crecto
             {% for model_field in CRECTO_FIELDS %}
               when "{{model_field[:name].id}}"
                 {% if model_field[:type].id.stringify == "String" %}
-                  @{{model_field[:name].id}} = value.to_s
+                  self.{{model_field[:name].id}} = value.to_s
                 {% elsif model_field[:type].id.stringify == "Int16" %}
-                  @{{model_field[:name].id}} = ::Crecto::TypeCast.cast_to_int16(value)
+                  self.{{model_field[:name].id}} = ::Crecto::TypeCast.cast_to_int16(value)
                 {% elsif model_field[:type].id.stringify.includes?("Int") %}
-                  @{{model_field[:name].id}} = ::Crecto::TypeCast.cast_to_int(value)
+                  self.{{model_field[:name].id}} = ::Crecto::TypeCast.cast_to_int(value)
                 {% elsif model_field[:type].id.stringify == "PkeyValue" %}
-                  @{{model_field[:name].id}} = ::Crecto::TypeCast.cast_to_int(value)
+                  self.{{model_field[:name].id}} = ::Crecto::TypeCast.cast_to_int(value)
                 {% elsif model_field[:type].id.stringify.includes?("Float") %}
-                  @{{model_field[:name].id}} = ::Crecto::TypeCast.cast_to_float(value)
+                  self.{{model_field[:name].id}} = ::Crecto::TypeCast.cast_to_float(value)
                 {% elsif model_field[:type].id.stringify == "Bool" %}
-                  @{{model_field[:name].id}} = ::Crecto::TypeCast.cast_to_bool(value)
+                  self.{{model_field[:name].id}} = ::Crecto::TypeCast.cast_to_bool(value)
                 {% elsif model_field[:type].id.stringify == "Json" %}
-                  @{{model_field[:name].id}} = JSON.parse(value)
+                  self.{{model_field[:name].id}} = JSON.parse(value)
                 {% elsif model_field[:type].id.stringify == "Time" %}
-                  @{{model_field[:name].id}} = ::Crecto::TypeCast.cast_to_time(value)
+                  self.{{model_field[:name].id}} = ::Crecto::TypeCast.cast_to_time(value)
                 {% end %}
             {% end %}
           end
