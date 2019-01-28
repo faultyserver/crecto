@@ -29,11 +29,11 @@ module Crecto
       when Int
         value
       when Number
-        value.to_i?
+        value.to_i
       when String
         value.to_i?
       when JSON::Any
-        value.as_i?
+        cast_to_int(value.raw)
       else
         nil
       end
@@ -44,16 +44,28 @@ module Crecto
       when Float
         value
       when Number
-        value.to_f?
+        value.to_f
       when String
         value.to_f?
+      when JSON::Any
+        cast_to_float(value.raw)
       else
         nil
       end
     end
 
     def cast_to_bool(value)
-      !!value
+      case value
+      when Bool
+        value
+      when String
+        return false if value == "false"
+        !!value
+      when JSON::Any
+        cast_to_bool(value.raw)
+      else
+        !!value
+      end
     end
 
     def cast_to_time(value)
