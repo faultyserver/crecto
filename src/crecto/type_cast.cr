@@ -32,6 +32,8 @@ module Crecto
         value.to_i?
       when String
         value.to_i?
+      when JSON::Any
+        value.as_i?
       else
         nil
       end
