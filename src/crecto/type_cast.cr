@@ -64,6 +64,12 @@ module Crecto
         rescue
           nil
         end
+      when JSON::Any
+        begin
+          Time::Format::ISO_8601_DATE_TIME.parse(value.as_s)
+        rescue
+          nil
+        end
       else
         nil
       end
