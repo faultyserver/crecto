@@ -240,7 +240,7 @@ module Crecto
                 {% elsif model_field[:type].id.stringify == "Bool" %}
                   self.{{model_field[:name].id}} = ::Crecto::TypeCast.cast_to_bool(value)
                 {% elsif model_field[:type].id.stringify == "Json" %}
-                  self.{{model_field[:name].id}} = JSON.parse(value)
+                  self.{{model_field[:name].id}} = value && JSON.parse(value.to_s)
                 {% elsif model_field[:type].id.stringify == "Time" %}
                   self.{{model_field[:name].id}} = ::Crecto::TypeCast.cast_to_time(value)
                 {% else %}
@@ -309,7 +309,7 @@ module Crecto
                 {% elsif field[:type].id.stringify == "Time" %}
                   self.{{field[:name].id}} = ::Crecto::TypeCast.cast_to_time(value)
                 {% else %}
-                  self.{{model_field[:name].id}} = value
+                  self.{{field[:name].id}} = value
                 {% end %}
               end
             {% end %}
