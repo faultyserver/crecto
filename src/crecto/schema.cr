@@ -188,7 +188,7 @@ module Crecto
 
       {% for field in json_fields %}
         def {{field.id}}=(val)
-          @{{field.id}} = JSON.parse(val.to_json)
+          @{{field.id}} = val.is_a?(JSON::Any) ? val : JSON.parse(val.to_json)
         end
       {% end %}
 
@@ -240,7 +240,7 @@ module Crecto
                 {% elsif model_field[:type].id.stringify == "Bool" %}
                   self.{{model_field[:name].id}} = ::Crecto::TypeCast.cast_to_bool(value)
                 {% elsif model_field[:type].id.stringify == "Json" %}
-                  self.{{model_field[:name].id}} = value && JSON.parse(value.to_s)
+                  self.{{model_field[:name].id}} = value.is_a?(JSON::Any) ? value : JSON.parse(value.to_s)
                 {% elsif model_field[:type].id.stringify == "Time" %}
                   self.{{model_field[:name].id}} = ::Crecto::TypeCast.cast_to_time(value)
                 {% else %}
@@ -305,7 +305,7 @@ module Crecto
                 {% elsif field[:type].id.stringify == "Bool" %}
                   self.{{field[:name].id}} = ::Crecto::TypeCast.cast_to_bool(value)
                 {% elsif field[:type].id.stringify == "Json" %}
-                  self.{{field[:name].id}} = JSON.parse(value)
+                  self.{{field[:name].id}} = value.is_a?(JSON::Any) ? value : JSON.parse(value)
                 {% elsif field[:type].id.stringify == "Time" %}
                   self.{{field[:name].id}} = ::Crecto::TypeCast.cast_to_time(value)
                 {% else %}
