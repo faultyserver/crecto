@@ -57,7 +57,7 @@ module Crecto
 
       # macro constants
       CRECTO_VALID_FIELD_TYPES = [String, Int64, Int32, Int16, Float32, Float64, Bool, Time, Int32 | Int64, Float32 | Float64, Json, PkeyValue, Array(String), Array(Int64), Array(Int32), Array(Int16), Array(Float32), Array(Float64), Array(Bool), Array(Time), Array(Int32 | Int64), Array(Float32 | Float64), Array(Json), Array(PkeyValue)]
-      CRECTO_VALID_FIELD_OPTIONS = [:primary_key, :virtual, :default]
+      CRECTO_VALID_FIELD_OPTIONS = [:primary_key, :virtual, :default, :read_only]
       CRECTO_FIELDS      = [] of NamedTuple(name: Symbol, type: String)
       CRECTO_ENUM_FIELDS = [] of NamedTuple(name: Symbol, type: String, column_name: String, column_type: String)
 
@@ -80,6 +80,7 @@ module Crecto
 
       # check `primary_key` and `virtual` options
       {% virtual = false %}
+      {% read_only = false %}
       {% primary_key = false %}
 
       {% if opts.keys.includes?(:primary_key.id) %}
@@ -93,6 +94,10 @@ module Crecto
         {% virtual = true %}
       {% end %}
 
+      {% if opts.keys.includes?(:read_only.id) %}
+        {% read_only = true %}
+      {% end %}
+
       {% if opts.keys.includes?(:default.id) %}
         @{{field_name.id}} = {{opts[:default]}}
       {% else %}
@@ -102,7 +107,7 @@ module Crecto
       check_type!({{field_name}}, {{field_type}})
 
       # cache fields in class variable and macro variable
-      {% unless virtual %}
+      {% unless virtual || read_only %}
         @@changeset_fields << {{field_name}}
       {% end %}
 
