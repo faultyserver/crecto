@@ -56,20 +56,20 @@ module Crecto
       end
 
       def execute(conn, query_string, params)
-        start = Time.now
+        start = Time.local
         begin
           if conn.is_a?(DB::Database)
-            conn.query(query_string, params)
+            conn.query(query_string, args: params)
           else
-            conn.connection.query(query_string, params)
+            conn.connection.query(query_string, args: params)
           end
         ensure
-          DbLogger.log(query_string, Time.new - start, params)
+          DbLogger.log(query_string, Time.local - start, params)
         end
       end
 
       def execute(conn, query_string)
-        start = Time.now
+        start = Time.local
         begin
           if conn.is_a?(DB::Database)
             conn.query(query_string)
@@ -77,13 +77,13 @@ module Crecto
             conn.connection.query(query_string)
           end
         ensure
-          DbLogger.log(query_string, Time.new - start)
+          DbLogger.log(query_string, Time.local - start)
         end
       end
 
       def exec_execute(conn, query_string, params)
         return execute(conn, query_string, params) if conn.is_a?(DB::Database)
-        conn.connection.exec(query_string, params)
+        conn.connection.exec(query_string, args: params)
       end
 
       def exec_execute(conn, query_string)
@@ -142,10 +142,10 @@ module Crecto
           offset(builder, query)
         end
 
-        start = Time.now
+        start = Time.local
         query_string = position_args(q)
-        results = conn.scalar(query_string, params)
-        DbLogger.log(query_string, Time.new - start, params)
+        results = conn.scalar(query_string, args: params)
+        DbLogger.log(query_string, Time.local - start, params)
         results
       end
 

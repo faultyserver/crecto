@@ -65,7 +65,7 @@ module Crecto
     # query = Query.where(name: "fred")
     # users = Repo.all(User, query)
     # ```
-    def all(queryable, query : Query? = Query.new, **opts) : Array
+    def all(queryable, query : Query? = Query.new, **opts)
       q = config.adapter.run(config.get_connection, :all, queryable, query).as(DB::ResultSet)
 
       results = queryable.from_rs(q.as(DB::ResultSet))
@@ -84,7 +84,7 @@ module Crecto
     # ```
     # users = Crecto::Repo.all(User)
     # ```
-    def all(queryable, query = Query.new) : Array
+    def all(queryable, query = Query.new)
       q = config.adapter.run(config.get_connection, :all, queryable, query).as(DB::ResultSet)
       results = queryable.from_rs(q)
       results
@@ -370,7 +370,7 @@ module Crecto
     #
     # ```
     # query = Crecto::Repo::Query.where(name: "Ted", count: 0)
-    # Repo.update_all(User, query, {count: 1, date: Time.now})
+    # Repo.update_all(User, query, {count: 1, date: Time.local})
     # ```
     def update_all(queryable, query, update_hash : Hash, tx : DB::Transaction?)
       config.adapter.run(tx || config.get_connection, :update_all, queryable, query, update_hash)
