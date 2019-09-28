@@ -21,7 +21,7 @@ module Crecto
       # ```
       # Query.distinct("users.name")
       # ```
-      def self.distinct(dist : String)2
+      def self.distinct(dist : String)
         self.new.distinct(dist)
       end
 
