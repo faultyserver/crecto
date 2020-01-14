@@ -39,14 +39,18 @@ module Crecto
 
     # Run a raw `query` query directly on the adapter connection
     def raw_query(query, *args)
+      start = Time.local
       config.get_connection.query(query, args: args) do |rs|
         yield rs
       end
+      DbLogger.log(query, Time.local - start, args)
     end
 
     # Run a raw `query` query directly on the adapter connection
     def raw_query(query, args : Array)
+      start = Time.local
       config.get_connection.query(query, args: args)
+      DbLogger.log(query, Time.local - start, args)
     end
 
     # Run a raw `scalar` query directly on the adapter connection
