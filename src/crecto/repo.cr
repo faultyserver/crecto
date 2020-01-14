@@ -39,19 +39,14 @@ module Crecto
 
     # Run a raw `query` query directly on the adapter connection
     def raw_query(query, *args)
-      config.get_connection.query(query, *args) do |rs|
+      config.get_connection.query(query, args: args) do |rs|
         yield rs
       end
     end
 
     # Run a raw `query` query directly on the adapter connection
     def raw_query(query, args : Array)
-      config.get_connection.query(args)
-    end
-
-    # Run a raw `query` query directly on the adapter connection
-    def raw_query(query, *args)
-      config.get_connection.query(*args)
+      config.get_connection.query(query, args: args)
     end
 
     # Run a raw `scalar` query directly on the adapter connection
